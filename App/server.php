@@ -40,9 +40,6 @@ if($SERVER['method'] == 'table'){
 }
 //当shadowsocks客户端连上来时
 $Worker->onConnect = function($connection)use($SERVER){
-    if($connection->getRemoteIp() != '112.74.107.180'){
-        $connection->close();
-    }
     //设置当前连接的状态为STAGE_INIT，初始状态
     $connection->stage = STAGE_INIT;
     //初始化加密类

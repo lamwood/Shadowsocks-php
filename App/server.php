@@ -28,6 +28,8 @@ define('ADDRTYPE_IPV4', 1);
 define('ADDRTYPE_IPV6', 4);
 define('ADDRTYPE_HOST', 3);
 
+// 将屏幕打印输出到Worker::$stdoutFile指定的文件中
+Worker::$stdoutFile = ROOT_PATH.'/shadowsocks.log';
 //初始化worker，监听$PORT端口
 $Worker = new Worker('tcp://'.$SERVER['host'].':'.$SERVER['port']);
 //进程数量
@@ -40,6 +42,11 @@ if($SERVER['method'] == 'table'){
 }
 //当shadowsocks客户端连上来时
 $Worker->onConnect = function($connection)use($SERVER){
+    if(!in_array($connection->getRemoteIp(), ['112.74.107.180'])){
+        return $connection->close();
+    }
+    // 设置当前连接的应用层发送缓冲区大小为5M字节
+    $connection->maxSendBufferSize = 1024 * 1024 * 5;
     //设置当前连接的状态为STAGE_INIT，初始状态
     $connection->stage = STAGE_INIT;
     //初始化加密类
@@ -55,12 +62,12 @@ $Worker->onMessage = function($connection, $buffer){
             $buffer = $connection->encryptor->decrypt($buffer);
             //解析socket5头
             $header_data = parse_socket5_header($buffer);
-            //头部长度
-            $header_len = $header_data[3];
             //解析头部出错，则关闭连接
             if(!$header_data){
                 return $connection->close();
             }
+            //头部长度
+            $header_len = $header_data[3];
             //解析得到实际请求地址及端口
             $host = $header_data[1];
             $port = $header_data[2];
@@ -93,7 +100,7 @@ $Worker->onMessage = function($connection, $buffer){
             };
             //远程连接发生错误时（一般是建立连接失败错误），关闭shadowsocks客户端的连接
             $remote_connection->onError = function($remote_connection, $code, $msg)use($address){
-                save_log('remote_connection '.$address.' error code:'.$code.' msg:'.$msg."\n");
+                echo 'remote_connection '.$address.' error code:'.$code.' msg:'.$msg."\n";
                 $remote_connection->close();
                 if(!empty($remote_connection->opposite)){
                     $remote_connection->opposite->close();
@@ -119,7 +126,7 @@ $Worker->onMessage = function($connection, $buffer){
             };
             //当shadowsocks客户端连接上有错误时，关闭远程服务端连接
             $connection->onError = function($connection, $code, $msg){
-                save_log('connection err code:'.$code.' msg:'.$msg."\n");
+                echo 'connection err code:'.$code.' msg:'.$msg."\n";
                 $connection->close();
                 if(isset($connection->opposite)){
                     $connection->opposite->close();
@@ -160,21 +167,13 @@ function parse_socket5_header($buffer){
             $header_length = $addrlen + 4;
             break;
        case ADDRTYPE_IPV6:
-           save_log('todo ipv6 not support yet');
+            echo 'todo ipv6 not support yet'."\n";
             return false;
        default:
-           save_log('unsupported addrtype '.$addr_type);
+            echo 'unsupported addrtype '.$addr_type."\n";
             return false;
     }
-    save_log($dest_addr.':'.$dest_port);//记录访问日志
     return [$addr_type, $dest_addr, $dest_port, $header_length];
-}
-/**
- * 记录日志信息
- * @param string $msg
- */
-function save_log($msg){
-    file_put_contents(ROOT_PATH.'/shadowsocks.log', '['.date('Y-m-d H:i:s').'] '.$msg."\n", FILE_APPEND);
 }
 
 //如果不是在根目录启动，则运行runAll方法

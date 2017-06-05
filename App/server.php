@@ -1,5 +1,6 @@
 <?php
 /**
+ * @author Wood Lin <frozen2way@gmail.com>
  * shadowsock 服务器端程序文件
  */
 use Workerman\Worker;
@@ -19,17 +20,15 @@ define('STAGE_DNS', 3);
 define('STAGE_CONNECTING', 4);
 define('STAGE_STREAM', 5);
 define('STAGE_DESTROYED', -1);
-// 命令
-define('CMD_CONNECT', 1);
-define('CMD_BIND', 2);
-define('CMD_UDP_ASSOCIATE', 3);
 // 请求地址类型
 define('ADDRTYPE_IPV4', 1);
 define('ADDRTYPE_IPV6', 4);
 define('ADDRTYPE_HOST', 3);
 
-// 将屏幕打印输出到Worker::$stdoutFile指定的文件中
+//将屏幕打印输出到Worker::$stdoutFile指定的文件中
 Worker::$stdoutFile = ROOT_PATH.'/shadowsocks.log';
+//设置所有连接的默认应用层发送缓冲区大小5M
+AsyncTcpConnection::$defaultMaxSendBufferSize = 5 * 1024 * 1024;
 //初始化worker，监听$PORT端口
 $Worker = new Worker('tcp://'.$SERVER['host'].':'.$SERVER['port']);
 //进程数量
@@ -45,8 +44,6 @@ $Worker->onConnect = function($connection)use($SERVER){
     if(!in_array($connection->getRemoteIp(), ['112.74.107.180'])){
         return $connection->close();
     }
-    // 设置当前连接的应用层发送缓冲区大小为5M字节
-    $connection->maxSendBufferSize = 1024 * 1024 * 5;
     //设置当前连接的状态为STAGE_INIT，初始状态
     $connection->stage = STAGE_INIT;
     //初始化加密类
@@ -64,6 +61,7 @@ $Worker->onMessage = function($connection, $buffer){
             $header_data = parse_socket5_header($buffer);
             //解析头部出错，则关闭连接
             if(!$header_data){
+                sleep(rand(1, 10));
                 return $connection->close();
             }
             //头部长度
@@ -149,6 +147,12 @@ $Worker->onMessage = function($connection, $buffer){
 /**
  * 解析shadowsocks客户端发来的socket5头部数据
  * @param string $buffer
+ * 包头格式
+    +--------------+---------------------+------------------+----------+
+    | Address Type | Destination Address | Destination Port |   Data   |
+    +--------------+---------------------+------------------+----------+
+    |      1       |       Variable      |         2        | Variable |
+    +--------------+---------------------+------------------+----------+
  */
 function parse_socket5_header($buffer){
     $addr_type = ord($buffer[0]);

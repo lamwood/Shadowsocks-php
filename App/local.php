@@ -1,5 +1,6 @@
 <?php
 /**
+ * @author Wood Lin <frozen2way@gmail.com>
  * Shadowsock 客户端程序
  */
 use Workerman\Worker;
@@ -24,6 +25,10 @@ define('CMD_CONNECT', 1);
 define('CMD_BIND', 2);
 define('CMD_UDP_ASSOCIATE', 3);
 
+//将屏幕打印输出到Worker::$stdoutFile指定的文件中
+Worker::$stdoutFile = ROOT_PATH.'/shadowsocks.log';
+//设置所有连接的默认应用层发送缓冲区大小5M
+AsyncTcpConnection::$defaultMaxSendBufferSize = 5 * 1024 * 1024;
 //初始化worker，监听$LOCAL_PORT端口
 $Worker = new Worker('tcp://'.$CLIENT['local_host'].':'.$CLIENT['local_port']);
 //进程数量
@@ -36,7 +41,6 @@ if($CLIENT['method'] == 'table'){
 }
 //当客户端连上来时
 $Worker->onConnect = function($connection)use($CLIENT){
-    #save_log($connection->getRemoteIp().' connected !');
     //设置当前连接的状态为STAGE_INIT，初始状态
     $connection->stage = STAGE_INIT;
     //初始化加密类
@@ -55,7 +59,7 @@ $Worker->onMessage = function($connection, $buffer)use($CLIENT){
             $cmd = ord($buffer[1]);
             //仅处理客户端的TCP连接请求
             if($cmd != CMD_CONNECT){
-                #save_log('['.date('Y-m-d H:i:s').']unsupport cmd');
+                echo '['.date('Y-m-d H:i:s').']unsupport cmd'."\n";
                 $connection->send("\x05\x07\x00\x01");
                 return $connection->close();
             }
@@ -85,7 +89,7 @@ $Worker->onMessage = function($connection, $buffer)use($CLIENT){
             };
             //远程连接发生错误时（一般是建立连接失败错误），关闭客户端的连接
             $remote_connection->onError = function($remote_connection, $code, $msg)use($address){
-                save_log('['.date('Y-m-d H:i:s').']remote_connection '.$address.' error code:'.$code.' msg:'.$msg."\n");
+                echo '['.date('Y-m-d H:i:s').']remote_connection '.$address.' error code:'.$code.' msg:'.$msg."\n";
                 $remote_connection->close();
                 if($remote_connection->opposite){
                     $remote_connection->opposite->close();
@@ -109,7 +113,7 @@ $Worker->onMessage = function($connection, $buffer)use($CLIENT){
             };
             //当客户端连接上有错误时，关闭远程服务端连接
             $connection->onError = function($connection, $code, $msg){
-                save_log('['.date('Y-m-d H:i:s').'] connection err code:'.$code.' msg:'.$msg."\n");
+                echo '['.date('Y-m-d H:i:s').'] connection err code:'.$code.' msg:'.$msg."\n";
                 $connection->close();
                 if(isset($connection->opposite)){
                     $connection->opposite->close();
@@ -128,14 +132,6 @@ $Worker->onMessage = function($connection, $buffer)use($CLIENT){
             break;
     }
 };
-
-/**
- * 记录日志信息
- * @param string $msg
- */
-function save_log($msg){
-    file_put_contents(ROOT_PATH.'/shadowsocks.log', $msg."\n", FILE_APPEND);
-}
 
 //如果不是在根目录启动，则运行runAll方法
 if(!defined('GLOBAL_START')){

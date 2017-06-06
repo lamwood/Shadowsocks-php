@@ -28,7 +28,7 @@ define('CMD_UDP_ASSOCIATE', 3);
 //将屏幕打印输出到Worker::$stdoutFile指定的文件中
 Worker::$stdoutFile = ROOT_PATH.'/shadowsocks.log';
 //设置所有连接的默认应用层发送缓冲区大小5M
-AsyncTcpConnection::$defaultMaxSendBufferSize = 5 * 1024 * 1024;
+AsyncTcpConnection::$defaultMaxSendBufferSize = 2 * 1024 * 1024;
 //初始化worker，监听$LOCAL_PORT端口
 $Worker = new Worker('tcp://'.$CLIENT['local_host'].':'.$CLIENT['local_port']);
 //进程数量
@@ -99,7 +99,7 @@ $Worker->onMessage = function($connection, $buffer)use($CLIENT){
             $connection->onBufferFull = function($connection){
                 $connection->opposite->pauseRecv();
             };
-            $connection->onBufferBrain = function($connection){
+            $connection->onBufferDrain = function($connection){
                 $connection->opposite->resumeRecv();
             };
             //当客户端发来数据时，加密数据，并发给远程服务端

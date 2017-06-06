@@ -28,7 +28,7 @@ define('ADDRTYPE_HOST', 3);
 //将屏幕打印输出到Worker::$stdoutFile指定的文件中
 Worker::$stdoutFile = ROOT_PATH.'/shadowsocks.log';
 //设置所有连接的默认应用层发送缓冲区大小5M
-AsyncTcpConnection::$defaultMaxSendBufferSize = 5 * 1024 * 1024;
+AsyncTcpConnection::$defaultMaxSendBufferSize = 2 * 1024 * 1024;
 //初始化worker，监听$PORT端口
 $Worker = new Worker('tcp://'.$SERVER['host'].':'.$SERVER['port']);
 //进程数量
@@ -110,7 +110,7 @@ $Worker->onMessage = function($connection, $buffer){
                 $connection->opposite->pauseRecv();
             };
             //流量控制，当shadowsocks客户端的连接发送缓冲区发送完毕后，继续读取远程服务端的数据
-            $connection->onBufferBrain = function($connection){
+            $connection->onBufferDrain = function($connection){
                 $connection->opposite->resumeRecv();
             };
             //当shadowsocks客户端发来数据时，解密数据，并发给远程服务端

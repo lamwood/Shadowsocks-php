@@ -27,7 +27,7 @@ define('ADDRTYPE_HOST', 3);
 
 //将屏幕打印输出到Worker::$stdoutFile指定的文件中
 Worker::$stdoutFile = ROOT_PATH.'/shadowsocks.log';
-//设置所有连接的默认应用层发送缓冲区大小5M
+//设置所有连接的默认应用层发送缓冲区大小2M
 AsyncTcpConnection::$defaultMaxSendBufferSize = 2 * 1024 * 1024;
 //初始化worker，监听$PORT端口
 $Worker = new Worker('tcp://'.$SERVER['host'].':'.$SERVER['port']);
@@ -35,15 +35,11 @@ $Worker = new Worker('tcp://'.$SERVER['host'].':'.$SERVER['port']);
 $Worker->count = $SERVER['process'];
 //名称
 $Worker->name = 'Shadowsocks-server';
-//如果加密算法为table，初始化table
-if($SERVER['method'] == 'table'){
-    Encryptor::initTable($SERVER['password']);
-}
 //当shadowsocks客户端连上来时
 $Worker->onConnect = function($connection)use($SERVER){
-    if(!in_array($connection->getRemoteIp(), ['112.74.107.180'])){
-        return $connection->close();
-    }
+    //if(!in_array($connection->getRemoteIp(), ['192.168.1.80'])){
+        //return $connection->close();
+    //}
     //设置当前连接的状态为STAGE_INIT，初始状态
     $connection->stage = STAGE_INIT;
     //初始化加密类

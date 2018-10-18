@@ -27,7 +27,7 @@ define('CMD_UDP_ASSOCIATE', 3);
 
 //将屏幕打印输出到Worker::$stdoutFile指定的文件中
 Worker::$stdoutFile = ROOT_PATH.'/shadowsocks.log';
-//设置所有连接的默认应用层发送缓冲区大小5M
+//设置所有连接的默认应用层发送缓冲区大小2M
 AsyncTcpConnection::$defaultMaxSendBufferSize = 2 * 1024 * 1024;
 //初始化worker，监听$LOCAL_PORT端口
 $Worker = new Worker('tcp://'.$CLIENT['local_host'].':'.$CLIENT['local_port']);
@@ -35,12 +35,12 @@ $Worker = new Worker('tcp://'.$CLIENT['local_host'].':'.$CLIENT['local_port']);
 $Worker->count = $CLIENT['process'];
 //名称
 $Worker->name = 'Shadowsock-local';
-//如果加密算法为table，初始化table
-if($CLIENT['method'] == 'table'){
-    Encryptor::initTable($CLIENT['password']);
-}
 //当客户端连上来时
 $Worker->onConnect = function($connection)use($CLIENT){
+    //if(preg_match('/^(100|42)\.[0-9]{1,3}\./', $connection->getRemoteIp())){
+        //return $connection->close();
+    //}
+    //echo '['.date('Y-m-d H:i:s').'] '.$connection->getRemoteIp()."\n";
     //设置当前连接的状态为STAGE_INIT，初始状态
     $connection->stage = STAGE_INIT;
     //初始化加密类
@@ -64,6 +64,7 @@ $Worker->onMessage = function($connection, $buffer)use($CLIENT){
                 return $connection->close();
             }
             $connection->stage = STAGE_CONNECTING;
+            //
             $buf_replies = "\x05\x00\x00\x01\x00\x00\x00\x00".pack('n', $CLIENT['local_port']);
             $connection->send($buf_replies);
             $address = 'tcp://'.$CLIENT['server'].':'.$CLIENT['port'];

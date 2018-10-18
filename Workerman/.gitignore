@@ -1,3 +1,6 @@
-.project
+logs
 .buildpath
-.settings/org.eclipse.php.core.prefs
+.project
+.settings
+.idea
+.DS_Store

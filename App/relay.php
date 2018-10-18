@@ -22,77 +22,33 @@ define('STAGE_CONNECTING', 4);
 define('STAGE_STREAM', 5);
 define('STAGE_DESTROYED', -1);
 
-//初始化worker，监听$LOCAL_PORT端口
-$Worker = new Worker('tcp://'.$CLIENT['local_host'].':'.$CLIENT['local_port']);
+//将屏幕打印输出到Worker::$stdoutFile指定的文件中
+Worker::$stdoutFile = ROOT_PATH.'/shadowsocks.log';
+//设置所有连接的默认应用层发送缓冲区大小2M
+AsyncTcpConnection::$defaultMaxSendBufferSize = 2 * 1024 * 1024;
+//初始化worker，监听$RELAY_PORT端口
+$Worker = new Worker('tcp://'.$RELAY['relay_host'].':'.$RELAY['relay_port']);
 //进程数量
-$Worker->count = $CLIENT['process'];
+$Worker->count = $RELAY['process'];
 //名称
 $Worker->name = 'Shadowsock-relay';
 //当客户端连上来时
-$Worker->onConnect = function($connection)use($CLIENT){
-    // 设置当前连接的应用层发送缓冲区大小为5M字节
-    $connection->maxSendBufferSize = 1024 * 1024 * 5;
+$Worker->onConnect = function($connection){
     //设置当前连接的状态为STAGE_INIT，初始状态
     $connection->stage = STAGE_INIT;
 };
 //当客户端发来消息时
-$Worker->onMessage = function($connection, $buffer)use($CLIENT){
+$Worker->onMessage = function($connection, $buffer)use($RELAY){
     //判断当前的连接状态
     switch($connection->stage){
         case STAGE_INIT:
         case STAGE_ADDR:
             $connection->stage = STAGE_CONNECTING;
-            $address = 'tcp://'.$CLIENT['server'].':'.$CLIENT['port'];
+            $address = 'tcp://'.$RELAY['server'].':'.$RELAY['port'];
             $remote_connection = new AsyncTcpConnection($address);
-            $connection->opposite = $remote_connection;
-            $remote_connection->opposite = $connection;
-            //流量控制
-            $remote_connection->onBufferFull = function($remote_connection){
-                $remote_connection->opposite->pauseRecv();
-            };
-            $remote_connection->onBufferDrain = function($remote_connection){
-                $remote_connection->opposite->resumeRecv();
-            };
-            //远程连接发来消息时，转发给客户端
-            $remote_connection->onMessage = function($remote_connection, $buffer){
-                $remote_connection->opposite->send($buffer);
-            };
-            //远程连接断开时，则断开客户端的连接
-            $remote_connection->onClose = function($remote_connection){
-                //关闭对端
-                $remote_connection->opposite->close();
-                $remote_connection->opposite = null;
-            };
-            //远程连接发生错误时（一般是建立连接失败错误），关闭客户端的连接
-            $remote_connection->onError = function($remote_connection, $code, $msg)use($address){
-                $remote_connection->close();
-                if($remote_connection->opposite){
-                    $remote_connection->opposite->close();
-                }
-            };
-            //流量控制
-            $connection->onBufferFull = function($connection){
-                $connection->opposite->pauseRecv();
-            };
-            $connection->onBufferDrain = function($connection){
-                $connection->opposite->resumeRecv();
-            };
-            //当客户端发来数据时，并发给远程服务端
-            $connection->onMessage = function($connection, $data){
-                $connection->opposite->send($data);
-            };
-            //当客户端关闭连接时，关闭远程服务端的连接
-            $connection->onClose = function($connection){
-                $connection->opposite->close();
-                $connection->opposite = null;
-            };
-            //当客户端连接上有错误时，关闭远程服务端连接
-            $connection->onError = function($connection, $code, $msg){
-                $connection->close();
-                if(isset($connection->opposite)){
-                    $connection->opposite->close();
-                }
-            };
+            //
+            $connection->pipe($remote_connection);
+            $remote_connection->pipe($connection);
             //执行远程连接
             $remote_connection->connect();
             //改变当前连接的状态为STAGE_STREAM，即开始转发数据流

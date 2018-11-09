@@ -57,12 +57,7 @@ class Event implements EventInterface
      */
     public function __construct()
     {
-        if (class_exists('\\\\EventBase', false)) {
-            $class_name = '\\\\EventBase';
-        } else {
-            $class_name = '\EventBase';
-        }
-        $this->_eventBase = new $class_name();
+        $this->_eventBase = new \EventBase();
     }
    
     /**
@@ -70,16 +65,11 @@ class Event implements EventInterface
      */
     public function add($fd, $flag, $func, $args=array())
     {
-        if (class_exists('\\\\Event', false)) {
-            $class_name = '\\\\Event';
-        } else {
-            $class_name = '\Event';
-        }
         switch ($flag) {
             case self::EV_SIGNAL:
 
                 $fd_key = (int)$fd;
-                $event = $class_name::signal($this->_eventBase, $fd, $func);
+                $event = \Event::signal($this->_eventBase, $fd, $func);
                 if (!$event||!$event->add()) {
                     return false;
                 }
@@ -90,7 +80,7 @@ class Event implements EventInterface
             case self::EV_TIMER_ONCE:
 
                 $param = array($func, (array)$args, $flag, $fd, self::$_timerId);
-                $event = new $class_name($this->_eventBase, -1, $class_name::TIMEOUT|$class_name::PERSIST, array($this, "timerCallback"), $param);
+                $event = new \Event($this->_eventBase, -1, \Event::TIMEOUT|\Event::PERSIST, array($this, "timerCallback"), $param);
                 if (!$event||!$event->addTimer($fd)) {
                     return false;
                 }
@@ -99,8 +89,8 @@ class Event implements EventInterface
                 
             default :
                 $fd_key = (int)$fd;
-                $real_flag = $flag === self::EV_READ ? $class_name::READ | $class_name::PERSIST : $class_name::WRITE | $class_name::PERSIST;
-                $event = new $class_name($this->_eventBase, $fd, $real_flag, $func, $fd);
+                $real_flag = $flag === self::EV_READ ? \Event::READ | \Event::PERSIST : \Event::WRITE | \Event::PERSIST;
+                $event = new \Event($this->_eventBase, $fd, $real_flag, $func, $fd);
                 if (!$event||!$event->add()) {
                     return false;
                 }
@@ -205,15 +195,5 @@ class Event implements EventInterface
         foreach ($this->_eventSignal as $event) {
             $event->del();
         }
-    }
-
-    /**
-     * Get timer count.
-     *
-     * @return integer
-     */
-    public function getTimerCount()
-    {
-        return count($this->_eventTimer);
     }
 }

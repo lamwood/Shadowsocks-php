@@ -181,14 +181,4 @@ class Ev implements EventInterface
             $event->stop();
         }
     }
-
-    /**
-     * Get timer count.
-     *
-     * @return integer
-     */
-    public function getTimerCount()
-    {
-        return count($this->_eventTimer);
-    }
 }

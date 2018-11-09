@@ -30,13 +30,6 @@ interface EventInterface
     const EV_WRITE = 2;
 
     /**
-     * Except event
-     *
-     * @var int
-     */
-    const EV_EXCEPT = 3;
-
-    /**
      * Signal event.
      *
      * @var int
@@ -97,11 +90,4 @@ interface EventInterface
      * @return mixed
      */
     public function destroy();
-
-    /**
-     * Get Timer count.
-     *
-     * @return mixed
-     */
-    public function getTimerCount();
 }

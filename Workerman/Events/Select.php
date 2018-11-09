@@ -47,13 +47,6 @@ class Select implements EventInterface
     protected $_writeFds = array();
 
     /**
-     * Fds waiting for except event.
-     *
-     * @var array
-     */
-    protected $_exceptFds = array();
-
-    /**
      * Timer scheduler.
      * {['data':timer_id, 'priority':run_timestamp], ..}
      *
@@ -67,7 +60,7 @@ class Select implements EventInterface
      *
      * @var array
      */
-    protected $_eventTimer = array();
+    protected $_task = array();
 
     /**
      * Timer id.
@@ -96,9 +89,8 @@ class Select implements EventInterface
     public function __construct()
     {
         // Create a pipeline and put into the collection of the read to read the descriptor to avoid empty polling.
-        $this->channel = stream_socket_pair(DIRECTORY_SEPARATOR === '/' ? STREAM_PF_UNIX : STREAM_PF_INET,
-            STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-        if($this->channel) {
+        $this->channel = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        if ($this->channel) {
             stream_set_blocking($this->channel[0], 0);
             $this->_readFds[0] = $this->channel[0];
         }
@@ -114,46 +106,27 @@ class Select implements EventInterface
     {
         switch ($flag) {
             case self::EV_READ:
-            case self::EV_WRITE:
-                $count = $flag === self::EV_READ ? count($this->_readFds) : count($this->_writeFds);
-                if ($count >= 1024) {
-                    echo "Warning: system call select exceeded the maximum number of connections 1024, please install event/libevent extension for more connections.\n";
-                } else if (DIRECTORY_SEPARATOR !== '/' && $count >= 256) {
-                    echo "Warning: system call select exceeded the maximum number of connections 256.\n";
-                }
                 $fd_key                           = (int)$fd;
                 $this->_allEvents[$fd_key][$flag] = array($func, $fd);
-                if ($flag === self::EV_READ) {
-                    $this->_readFds[$fd_key] = $fd;
-                } else {
-                    $this->_writeFds[$fd_key] = $fd;
-                }
+                $this->_readFds[$fd_key]          = $fd;
                 break;
-            case self::EV_EXCEPT:
-                $fd_key = (int)$fd;
+            case self::EV_WRITE:
+                $fd_key                           = (int)$fd;
                 $this->_allEvents[$fd_key][$flag] = array($func, $fd);
-                $this->_exceptFds[$fd_key] = $fd;
+                $this->_writeFds[$fd_key]         = $fd;
                 break;
             case self::EV_SIGNAL:
-                // Windows not support signal.
-                if(DIRECTORY_SEPARATOR !== '/') {
-                    return false;
-                }
                 $fd_key                              = (int)$fd;
                 $this->_signalEvents[$fd_key][$flag] = array($func, $fd);
                 pcntl_signal($fd, array($this, 'signalHandler'));
                 break;
             case self::EV_TIMER:
             case self::EV_TIMER_ONCE:
-                $timer_id = $this->_timerId++;
                 $run_time = microtime(true) + $fd;
-                $this->_scheduler->insert($timer_id, -$run_time);
-                $this->_eventTimer[$timer_id] = array($func, (array)$args, $flag, $fd);
-                $select_timeout = ($run_time - microtime(true)) * 1000000;
-                if( $this->_selectTimeout > $select_timeout ){ 
-                    $this->_selectTimeout = $select_timeout;   
-                }  
-                return $timer_id;
+                $this->_scheduler->insert($this->_timerId, -$run_time);
+                $this->_task[$this->_timerId] = array($func, (array)$args, $flag, $fd);
+                $this->tick();
+                return $this->_timerId++;
         }
 
         return true;
@@ -188,23 +161,13 @@ class Select implements EventInterface
                     unset($this->_allEvents[$fd_key]);
                 }
                 return true;
-            case self::EV_EXCEPT:
-                unset($this->_allEvents[$fd_key][$flag], $this->_exceptFds[$fd_key]);
-                if(empty($this->_allEvents[$fd_key]))
-                {
-                    unset($this->_allEvents[$fd_key]);
-                }
-                return true;
             case self::EV_SIGNAL:
-                if(DIRECTORY_SEPARATOR !== '/') {
-                    return false;
-                }
                 unset($this->_signalEvents[$fd_key]);
                 pcntl_signal($fd, SIG_IGN);
                 break;
             case self::EV_TIMER:
             case self::EV_TIMER_ONCE;
-                unset($this->_eventTimer[$fd_key]);
+                unset($this->_task[$fd_key]);
                 return true;
         }
         return false;
@@ -226,18 +189,18 @@ class Select implements EventInterface
             if ($this->_selectTimeout <= 0) {
                 $this->_scheduler->extract();
 
-                if (!isset($this->_eventTimer[$timer_id])) {
+                if (!isset($this->_task[$timer_id])) {
                     continue;
                 }
 
                 // [func, args, flag, timer_interval]
-                $task_data = $this->_eventTimer[$timer_id];
+                $task_data = $this->_task[$timer_id];
                 if ($task_data[2] === self::EV_TIMER) {
                     $next_run_time = $time_now + $task_data[3];
                     $this->_scheduler->insert($timer_id, -$next_run_time);
                 }
                 call_user_func_array($task_data[0], $task_data[1]);
-                if (isset($this->_eventTimer[$timer_id]) && $task_data[2] === self::EV_TIMER_ONCE) {
+                if (isset($this->_task[$timer_id]) && $task_data[2] === self::EV_TIMER_ONCE) {
                     $this->del($timer_id, self::EV_TIMER_ONCE);
                 }
                 continue;
@@ -254,7 +217,7 @@ class Select implements EventInterface
     {
         $this->_scheduler = new \SplPriorityQueue();
         $this->_scheduler->setExtractFlags(\SplPriorityQueue::EXTR_BOTH);
-        $this->_eventTimer = array();
+        $this->_task = array();
     }
 
     /**
@@ -264,20 +227,13 @@ class Select implements EventInterface
     {
         $e = null;
         while (1) {
-            if(DIRECTORY_SEPARATOR === '/') {
-                // Calls signal handlers for pending signals
-                pcntl_signal_dispatch();
-            }
+            // Calls signal handlers for pending signals
+            pcntl_signal_dispatch();
 
             $read  = $this->_readFds;
             $write = $this->_writeFds;
-            $except = $this->_exceptFds;
-
             // Waiting read/write/signal/timeout events.
-            set_error_handler(function(){});
-            $ret = stream_select($read, $write, $except, 0, $this->_selectTimeout);
-            restore_error_handler();
-
+            $ret = @stream_select($read, $write, $e, 0, $this->_selectTimeout);
 
             if (!$this->_scheduler->isEmpty()) {
                 $this->tick();
@@ -287,33 +243,19 @@ class Select implements EventInterface
                 continue;
             }
 
-            if ($read) {
-                foreach ($read as $fd) {
-                    $fd_key = (int)$fd;
-                    if (isset($this->_allEvents[$fd_key][self::EV_READ])) {
-                        call_user_func_array($this->_allEvents[$fd_key][self::EV_READ][0],
-                            array($this->_allEvents[$fd_key][self::EV_READ][1]));
-                    }
+            foreach ($read as $fd) {
+                $fd_key = (int)$fd;
+                if (isset($this->_allEvents[$fd_key][self::EV_READ])) {
+                    call_user_func_array($this->_allEvents[$fd_key][self::EV_READ][0],
+                        array($this->_allEvents[$fd_key][self::EV_READ][1]));
                 }
             }
 
-            if ($write) {
-                foreach ($write as $fd) {
-                    $fd_key = (int)$fd;
-                    if (isset($this->_allEvents[$fd_key][self::EV_WRITE])) {
-                        call_user_func_array($this->_allEvents[$fd_key][self::EV_WRITE][0],
-                            array($this->_allEvents[$fd_key][self::EV_WRITE][1]));
-                    }
-                }
-            }
-
-            if($except) {
-                foreach($except as $fd) {
-                    $fd_key = (int) $fd;
-                    if(isset($this->_allEvents[$fd_key][self::EV_EXCEPT])) {
-                        call_user_func_array($this->_allEvents[$fd_key][self::EV_EXCEPT][0],
-                            array($this->_allEvents[$fd_key][self::EV_EXCEPT][1]));
-                    }
+            foreach ($write as $fd) {
+                $fd_key = (int)$fd;
+                if (isset($this->_allEvents[$fd_key][self::EV_WRITE])) {
+                    call_user_func_array($this->_allEvents[$fd_key][self::EV_WRITE][0],
+                        array($this->_allEvents[$fd_key][self::EV_WRITE][1]));
                 }
             }
         }
@@ -327,15 +269,5 @@ class Select implements EventInterface
     public function destroy()
     {
 
-    }
-
-    /**
-     * Get timer count.
-     *
-     * @return integer
-     */
-    public function getTimerCount()
-    {
-        return count($this->_eventTimer);
     }
 }

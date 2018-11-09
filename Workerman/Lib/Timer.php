@@ -14,7 +14,6 @@
 namespace Workerman\Lib;
 
 use Workerman\Events\EventInterface;
-use Workerman\Worker;
 use Exception;
 
 /**
@@ -55,9 +54,7 @@ class Timer
         if ($event) {
             self::$_event = $event;
         } else {
-            if (function_exists('pcntl_signal')) {
-                pcntl_signal(SIGALRM, array('\Workerman\Lib\Timer', 'signalHandle'), false);
-            }
+            pcntl_signal(SIGALRM, array('\Workerman\Lib\Timer', 'signalHandle'), false);
         }
     }
 
@@ -77,8 +74,8 @@ class Timer
     /**
      * Add a timer.
      *
-     * @param float    $time_interval
-     * @param callable $func
+     * @param int      $time_interval
+     * @param callback $func
      * @param mixed    $args
      * @param bool     $persistent
      * @return int/false
@@ -86,7 +83,7 @@ class Timer
     public static function add($time_interval, $func, $args = array(), $persistent = true)
     {
         if ($time_interval <= 0) {
-            Worker::safeEcho(new Exception("bad time_interval"));
+            echo new Exception("bad time_interval");
             return false;
         }
 
@@ -96,7 +93,7 @@ class Timer
         }
 
         if (!is_callable($func)) {
-            Worker::safeEcho(new Exception("not callable"));
+            echo new Exception("not callable");
             return false;
         }
 
@@ -137,7 +134,7 @@ class Timer
                     try {
                         call_user_func_array($task_func, $task_args);
                     } catch (\Exception $e) {
-                        Worker::safeEcho($e);
+                        echo $e;
                     }
                     if ($persistent) {
                         self::add($time_interval, $task_func, $task_args);

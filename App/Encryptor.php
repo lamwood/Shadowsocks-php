@@ -217,7 +217,7 @@ class AEADEncipher{
         $this->_aead_tail = '';
         $iv_len = self::$_methodSupported[$algorithm][1];
         $this->_aead_iv = str_repeat("\x00", $iv_len);
-        $this->_aead_subkey = hash_hkdf('sha1', $key, strlen($key), 'my-subkey', $salt); //subkey生成
+        $this->_aead_subkey = hash_hkdf('sha1', $key, strlen($key), 'ss-subkey', $salt); //subkey生成
         $this->_aead_chunk_id = 0;
         $this->_aead_encipher_all = $all;
     }

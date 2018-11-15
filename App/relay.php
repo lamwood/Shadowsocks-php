@@ -16,11 +16,8 @@ Autoloader::setRootPath(__DIR__);
 // 状态相关
 define('STAGE_INIT', 0);
 define('STAGE_ADDR', 1);
-define('STAGE_UDP_ASSOC', 2);
-define('STAGE_DNS', 3);
 define('STAGE_CONNECTING', 4);
 define('STAGE_STREAM', 5);
-define('STAGE_DESTROYED', -1);
 
 //将屏幕打印输出到Worker::$stdoutFile指定的文件中
 Worker::$stdoutFile = ROOT_PATH.'/shadowsocks.log';
@@ -59,8 +56,3 @@ $Worker->onMessage = function($connection, $buffer)use($RELAY){
             break;
     }
 };
-
-//如果不是在根目录启动，则运行runAll方法
-if(!defined('GLOBAL_START')){
-    Worker::runAll();
-}

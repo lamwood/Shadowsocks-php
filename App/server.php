@@ -57,7 +57,6 @@ $Worker->onMessage = function($connection, $buffer){
             $header_data = parse_socket5_header($buffer);
             //解析头部出错，则关闭连接
             if(!$header_data){
-                sleep(rand(1, 10));
                 return $connection->close();
             }
             //头部长度
@@ -192,9 +191,4 @@ function parse_socket5_header($buffer){
             return false;
     }
     return [$addr_type, $dest_addr, $dest_port, $header_length];
-}
-
-//如果不是在根目录启动，则运行runAll方法
-if(!defined('GLOBAL_START')){
-    Worker::runAll();
 }

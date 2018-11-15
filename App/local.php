@@ -133,8 +133,3 @@ $Worker->onMessage = function($connection, $buffer)use($CLIENT){
             break;
     }
 };
-
-//如果不是在根目录启动，则运行runAll方法
-if(!defined('GLOBAL_START')){
-    Worker::runAll();
-}

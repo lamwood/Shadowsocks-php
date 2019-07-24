@@ -6,9 +6,6 @@
 class Protocol{
     //
     protected $_protocol;
-    protected static $_protocolSupported = [
-        'origin',
-    ];
     //
     public function __construct($protocol = 'origin'){
         switch($protocol){

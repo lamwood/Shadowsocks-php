@@ -16,7 +16,7 @@
 * chacha20-ietf-poly1305
 * xchacha20-ietf-poly1305
 
-其中aes-256-gcm,chacha20-poly1305,chacha20-ietf-poly1305,xchacha20-ietf-poly1305需要php7.2.0以上版本，或者php 7.0.0版本以上加装sodium扩展
+其中chacha20-poly1305,chacha20-ietf-poly1305,xchacha20-ietf-poly1305需要php7.2.0以上版本，或者php 7.0.0版本以上加装sodium扩展
 
 ###程序运行
 

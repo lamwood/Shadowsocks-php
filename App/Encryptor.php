@@ -19,10 +19,10 @@ class Encryptor{
         'aes-256-cfb' => [32, 16],
         'aes-128-gcm' => [16, 16],
         'aes-192-gcm' => [24, 24],
-        'aes-256-gcm' => [32, 32], //PHP >= 7.2.0
-        'chacha20-poly1305' => [32, 32], //PHP >= 7.2.0
-        'chacha20-ietf-poly1305' => [32, 32], //PHP >= 7.2.0
-        'xchacha20-ietf-poly1305' => [32, 32], //PHP >= 7.2.0
+        'aes-256-gcm' => [32, 32],
+        'chacha20-poly1305' => [32, 32], //require soduim
+        'chacha20-ietf-poly1305' => [32, 32], //require sodium
+        'xchacha20-ietf-poly1305' => [32, 32], //require sodium
     ];
     //
     public function __construct($key, $method, $onceMode = false){
